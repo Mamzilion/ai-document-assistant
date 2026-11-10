@@ -82,5 +82,5 @@ All documents in `docs/` are **fictitious** and created for this demo.
 
 ---
 
-Built by **Abbas Madani** & **Daniel Mama** — LionTech · AI automation for SMEs and agencies
+Built by **Daniel Mama** — LionTech · AI automation for SMEs and agencies
 [GitHub](https://github.com/Mamzilion)
