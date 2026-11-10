@@ -1,0 +1,348 @@
+{
+  "name": "RAG Assistant - Maison Kora",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "Ajouter des documents",
+        "formDescription": "Déposez les PDF de l'entreprise (conditions, FAQ, garanties...)",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Documents",
+              "fieldType": "file",
+              "acceptFileTypes": ".pdf",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        -16,
+        96
+      ],
+      "id": "7a748893-5430-4115-a208-2e6bdcf24eae",
+      "name": "On form submission",
+      "webhookId": "34948fea-39f7-4a84-988e-cc0fdc837636"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Chaque fichier envoyé devient un élément séparé, avec son nom\nconst out = [];\nfor (const item of $input.all()) {\n  for (const [key, file] of Object.entries(item.binary || {})) {\n    out.push({\n      json: { fileName: file.fileName },\n      binary: { data: file }\n    });\n  }\n}\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        96
+      ],
+      "id": "d50ef4d8-5176-43b5-8e17-3e17c2465663",
+      "name": "Split Files"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "memoryKey": {
+          "__rl": true,
+          "value": "kora_docs",
+          "mode": "list"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.4,
+      "position": [
+        416,
+        80
+      ],
+      "id": "85e368d3-199a-4c21-bcb6-71f97bb9fb7f",
+      "name": "Simple Vector Store"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        608,
+        272
+      ],
+      "id": "06d99b42-75f0-4d8b-849e-3a59aac8ddec",
+      "name": "Embeddings Google Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "IH3mbyOEHIuztPB1",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "binaryMode": "specificField",
+        "loader": "pdfLoader",
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "source",
+                "value": "={{ $json.fileName }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        784,
+        208
+      ],
+      "id": "7f04b88b-8fdb-4dc7-801b-855121bb6980",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "chunkSize": 800,
+        "chunkOverlap": 100,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        912,
+        352
+      ],
+      "id": "881d0a45-03da-47df-b9f5-d535e221c61a",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "Bonjour ! 👋 Je suis l'assistant de Maison Kora. Posez-moi vos questions sur la livraison, les retours, la garantie ou nos services.",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -128,
+        304
+      ],
+      "id": "d355bcbf-c87b-4a95-b01a-fa2171963dbf",
+      "name": "When chat message received",
+      "webhookId": "b208c11d-22a5-4ffe-a7be-8fa1b4f7ac56"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "Tu es l'assistant du service client de Maison Kora, une marque de sacs en cuir fabriqués à Lyon.\n\nRègles :\n1. Pour chaque question, cherche d'abord dans l'outil documents_maison_kora.\n2. Réponds uniquement à partir des informations trouvées. N'invente jamais un prix, un délai ou une condition.\n3. Si l'information n'est pas dans les documents, dis-le simplement et propose de contacter le service client : bonjour@maison-kora.example (du lundi au vendredi, de 9 h à 18 h).\n4. Termine chaque réponse par la source, au format : 📄 Source : nom du document.\n5. Réponds dans la langue du client, de façon courte, chaleureuse et claire (3 à 5 phrases maximum)."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        96,
+        304
+      ],
+      "id": "74e373c3-dea9-4651-84a1-702643c32820",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        -16,
+        496
+      ],
+      "id": "369736f6-7402-4f21-84bf-6a8a2cb22867",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "IH3mbyOEHIuztPB1",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 10
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.4,
+      "position": [
+        192,
+        512
+      ],
+      "id": "37cb6ae7-7c08-48e5-a109-4e5a1746b0f7",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Documents officiels de Maison Kora : livraison, retours, remboursements, colis perdus, garantie, réparations, entretien du cuir, personnalisation, paiement, boutique, codes promo, programme de fidélité. À utiliser pour toute question d'un client.",
+        "memoryKey": {
+          "__rl": true,
+          "value": "kora_docs",
+          "mode": "list",
+          "cachedResultName": "kora_docs"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.4,
+      "position": [
+        352,
+        416
+      ],
+      "id": "16732050-8fbb-4b20-9840-11f3b9bb6780",
+      "name": "Simple Vector Store1"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        704,
+        496
+      ],
+      "id": "0e7740da-eeed-49da-b230-bc3d8167f6e9",
+      "name": "Embeddings Google Gemini1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "IH3mbyOEHIuztPB1",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Split Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Files": {
+      "main": [
+        [
+          {
+            "node": "Simple Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Simple Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Simple Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Vector Store1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini1": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Simple Vector Store1",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": true
+  },
+  "versionId": "b752b6ad-e261-4283-ac32-184ed1846d5f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "55c0dac8c354ce4a3e4e8b47766528a105c6bbfdfc5381d506d6d73f91937f8e"
+  },
+  "nodeGroups": [],
+  "id": "h5g5RZYC42yNHqeb",
+  "tags": []
+}
